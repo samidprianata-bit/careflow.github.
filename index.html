@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAREFLOW - Pelayanan antri menjadi lebih mudah Normal & Darurat</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+*{margin:0;box-sizing:border-box;font-family:Poppins;}
+body{background:linear-gradient(135deg,#0161d5,#33fe88);}
+header{background:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 4px 10px rgba(0,0,0,.1);}
+h2,h3{margin-bottom:10px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));padding:20px;}
+.card{background:white;padding:20px;border-radius:14px;box-shadow:0 10px 20px rgba(0,0,0,.12);margin:10px;}
+input,select,button{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #ddd;}
+button{background:#038e34;color:white;border:none;font-weight:600;cursor:pointer;}
+button:hover{opacity:.9;}
+.queue{padding:8px;border-radius:8px;margin:5px 0;color:white;opacity:0;transform:translateX(-20px);animation:appear 0.5s forwards;}
+@keyframes appear{to{opacity:1;transform:translateX(0);}}
+/* Warna normal per poli */
+.queue.Umum{background:#27ae60;}
+.queue.Gigi{background:#2980b9;}
+.queue.Anak{background:#f39c12;}
+/* Darurat */
+.queue.Darurat{background:#e74c3c;}
+.outline{background:white;border:2px solid #2ecc71;color:#2ecc71;}
+</style>
+</head>
+<body>
+
+<header>
+  <h2>Care Flow</h2>
+</header>
+
+<div class="grid">
+  <div class="card">
+    <h3>Ambil Antrian</h3>
+    <input id="nama" placeholder="Nama Pasien">
+    <select id="poli">
+      <option>Umum</option>
+      <option>Gigi</option>
+      <option>Anak</option>
+    </select>
+    <select id="prioritas">
+      <option value="Normal">Normal / BPJS / Umum</option>
+      <option value="Darurat">Darurat / Kasus Parah</option>
+    </select>
+    <button onclick="ambil()">Ambil Nomor</button>
+    <p id="hasil"></p>
+  </div>
+
+  <div class="card">
+    <h3>Antrian Normal</h3>
+    <div id="listNormal"></div>
+    <button onclick="nextPatientNormal()">Panggil Berikutnya (Normal)</button>
+  </div>
+
+  <div class="card">
+    <h3>Antrian Darurat</h3>
+    <div id="listDarurat"></div>
+    <button onclick="nextPatientDarurat()" style="background:#e74c3c;">Panggil Berikutnya (Darurat)</button>
+  </div>
+
+  <div class="card">
+    <h3>Statistik Poli Normal</h3>
+    <canvas id="chart"></canvas>
+  </div>
+</div>
+
+<script>
+/* DATABASE */
+let queueNormal = JSON.parse(localStorage.getItem("queueNormal")) || [];
+let queueDarurat = JSON.parse(localStorage.getItem("queueDarurat")) || [];
+
+/* DURASI */
+function getDuration(poli){return {Umum:5,Gigi:10,Anak:7}[poli];}
+
+/* HITUNG JAM */
+function calcTime(queue,index){
+  let startHour=7, startMin=0;
+  for(let i=0;i<index;i++){startMin+=getDuration(queue[i].poli);}
+  startHour+=Math.floor(startMin/60);
+  startMin=startMin%60;
+  return `${String(startHour).padStart(2,'0')}:${String(startMin).padStart(2,'0')}`;
+}
+
+/* AMBIL */
+function ambil(){
+  if(!nama.value) return alert("Isi nama dulu 😊");
+  const pasien={nama:nama.value,poli:poli.value};
+  if(prioritas.value==="Darurat") queueDarurat.push(pasien);
+  else queueNormal.push(pasien);
+  localStorage.setItem("queueNormal",JSON.stringify(queueNormal));
+  localStorage.setItem("queueDarurat",JSON.stringify(queueDarurat));
+  hasil.innerHTML = `Terdaftar sebagai ${prioritas.value}`;
+  render();
+}
+
+/* RENDER */
+function render(){
+  listNormal.innerHTML="";
+  queueNormal.forEach((q,i)=>{
+    let jam = calcTime(queueNormal,i);
+    listNormal.innerHTML+=`<div class="queue ${q.poli}">#${i+1} ${q.nama} (${q.poli}) - ${jam}</div>`;
+  });
+  listDarurat.innerHTML="";
+  queueDarurat.forEach((q,i)=>{
+    let jam = calcTime(queueDarurat,i);
+    listDarurat.innerHTML+=`<div class="queue Darurat">#${i+1} ${q.nama} (${q.poli}) - ${jam}</div>`;
+  });
+  drawChart();
+}
+
+/* NEXT PATIENT */
+function nextPatientNormal(){if(queueNormal.length>0){queueNormal.shift();localStorage.setItem("queueNormal",JSON.stringify(queueNormal));render();}}
+function nextPatientDarurat(){if(queueDarurat.length>0){queueDarurat.shift();localStorage.setItem("queueDarurat",JSON.stringify(queueDarurat));render();}}
+
+/* CHART NORMAL */
+let chartInstance;
+function drawChart(){
+  const count={Umum:0,Gigi:0,Anak:0};
+  queueNormal.forEach(q=>count[q.poli]++);
+  if(chartInstance) chartInstance.destroy();
+  chartInstance=new Chart(chart,{
+    type:'bar',
+    data:{labels:Object.keys(count),datasets:[{data:Object.values(count)}]}
+  });
+}
+
+render();
+</script>
+
+</body>
+</html>
